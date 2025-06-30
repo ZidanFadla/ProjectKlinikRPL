@@ -1,100 +1,150 @@
 <?php
-include('../../assets/db/database.php'); 
-include('../../auth.php'); 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+include('../../assets/db/database.php');
+include('../../auth.php');
 
-// DEBUG: Pastikan koneksi database tersedia
-if (!isset($conn)) {
-    die("Error: Koneksi database tidak tersedia. Periksa file database.php");
-}
+$feedback = null;
 
-if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    echo "Proses form dimulai.<br>"; // DEBUG
-    
-    $name = $_POST['name'];
-    $price = $_POST['price'];
-    $stock = $_POST['stock'];
-    $category = $_POST['category'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name     = $_POST['name'];
+    $price    = $_POST['price'];
+    $stock    = $_POST['stock'];
+    $categoryRaw = $_POST['category_raw'];
+    $category = "Product-" . $categoryRaw;
 
-
-    // Validasi upload gambar
     if (!empty($_FILES['image']['name'])) {
-
         $image = $_FILES['image']['name'];
-        $targetDir = "../../uploads/";
+        $tmp   = $_FILES['image']['tmp_name'];
+        $targetDir  = "../../uploads/";
         $targetFile = $targetDir . basename($image);
 
-        // Pastikan folder `uploads` sudah ada
         if (!file_exists($targetDir)) {
             mkdir($targetDir, 0777, true);
-            echo "Folder uploads dibuat.<br>";
         }
 
-        // Proses upload file
-        if (move_uploaded_file($_FILES['image']['tmp_name'], $targetFile)) {
-
-            // Insert data ke database
-            $stmt = $conn->prepare("INSERT INTO products (name, price, stock, image, category) VALUES (?, ?, ?, ?,?)");
+        if (move_uploaded_file($tmp, $targetFile)) {
+            $stmt = $conn->prepare("INSERT INTO products (name, price, stock, image, category) VALUES (?, ?, ?, ?, ?)");
             $stmt->bind_param("sdiss", $name, $price, $stock, $image, $category);
 
             if ($stmt->execute()) {
-                header("Location: ../dashboard.php");
-                exit;
+                $feedback = ['type' => 'success', 'msg' => 'Produk berhasil ditambahkan!'];
             } else {
-                echo "Error: " . $stmt->error . "<br>"; 
+                $feedback = ['type' => 'error', 'msg' => 'Gagal simpan ke database: ' . $stmt->error];
             }
         } else {
-            echo "Gagal mengunggah gambar.<br>"; 
+            $feedback = ['type' => 'error', 'msg' => 'Gagal mengunggah gambar.'];
         }
     } else {
-        echo "Gambar produk harus diunggah.<br>"; 
+        $feedback = ['type' => 'warning', 'msg' => 'Gambar produk wajib diunggah.'];
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tambah Produk</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tambah Produk</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
-<body class="bg-gradient-to-r from-blue-300 via-blue-100 to-blue-300">
-    <div class="min-h-screen flex items-center justify-center">
-        <div class="bg-white shadow-md rounded-lg p-6 w-full max-w-md">
-            <h2 class="text-2xl font-bold text-center text-gray-700 mb-6">Tambah Produk</h2>
-            <form action="add_product.php" method="POST" enctype="multipart/form-data">
-                <div class="mb-4">
-                    <label for="name" class="block text-gray-700 font-semibold mb-2">Nama Produk</label>
-                    <input type="text" name="name" id="name" class="w-full px-4 py-2 border rounded-md" required>
-                </div>
-                <div class="mb-4">
-                    <label for="price" class="block text-gray-700 font-semibold mb-2">Harga</label>
-                    <input type="number" name="price" id="price" class="w-full px-4 py-2 border rounded-md" required>
-                </div>
-                <div class="mb-4">
-                    <label for="stock" class="block text-gray-700 font-semibold mb-2">Stok</label>
-                    <input type="number" name="stock" id="stock" class="w-full px-4 py-2 border rounded-md" required>
-                </div>
-                <div class="mb-4">
-                    <label for="category" class="block text-gray-700 font-semibold mb-2">Kategori</label>
-                    <input type="text" name="category" id="category" class="w-full px-4 py-2 border rounded-md" placeholder="Contoh: Product-Kosmetik" required>
-                </div>
-                <div class="mb-4">
-                    <label for="image" class="block text-gray-700 font-semibold mb-2">Gambar Produk</label>
-                    <input type="file" name="image" id="image" class="w-full px-4 py-2 border rounded-md">
-                </div>
-                <div class="flex justify-between">
-                    <a href="../dashboard.php" class="bg-gray-400 text-white py-2 px-4 rounded hover:bg-gray-500 transition">
-                        Kembali
-                    </a>
-                    <button type="submit" class="bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 transition">
-                        Tambah Produk
-                    </button>
-                </div>
-            </form>
+<body class="bg-gray-100 min-h-screen flex">
+  <?php include "../sidebar_add_edit.php"; ?>
 
+  <!-- Konten utama -->
+  <main class="flex-1 ml-64 p-8">
+    <div class="max-w-4xl mx-auto bg-white shadow-md rounded-lg p-8">
+      <div class="flex justify-between items-center mb-6">
+        <h2 class="text-3xl font-bold text-blue-600"><i class="fas fa-box-open mr-2"></i>Tambah Produk</h2>
+        <a href="../dashboard.php" class="text-blue-500 hover:text-blue-700 flex items-center">
+          <i class="fas fa-arrow-left mr-1"></i> Kembali
+        </a>
+      </div>
+
+      <form action="" method="POST" enctype="multipart/form-data" class="space-y-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-gray-700 font-semibold mb-2">Nama Produk <span class="text-red-500">*</span></label>
+            <input type="text" name="name" placeholder="Nama Produk" required class="w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300">
+          </div>
+          <div>
+            <label class="block text-gray-700 font-semibold mb-2">Kategori <span class="text-red-500">*</span></label>
+            <select name="category_raw" required class="w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300">
+              <option value="" disabled selected>Pilih Kategori</option>
+              <option value="Skincare">Skincare</option>
+              <option value="Kosmetik">Kosmetik</option>
+              <option value="Haircare">Haircare</option>
+              <option value="Facecare">Facecare</option>
+              <option value="Bodycare">Bodycare</option>
+              <option value="Makeup">Makeup</option>
+              <option value="Nailcare">Nailcare</option>
+              <option value="Fragrance">Fragrance</option>
+              <option value="Tools">Tools</option>
+              <option value="Tester">Tester</option>
+            </select>
+          </div>
         </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label class="block text-gray-700 font-semibold mb-2">Harga <span class="text-red-500">*</span></label>
+            <input type="number" name="price" placeholder="Harga" required class="w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300">
+          </div>
+          <div>
+            <label class="block text-gray-700 font-semibold mb-2">Stok <span class="text-red-500">*</span></label>
+            <input type="number" name="stock" placeholder="Jumlah Stok" required class="w-full px-4 py-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-300">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-gray-700 font-semibold mb-2">Gambar Produk <span class="text-red-500">*</span></label>
+          <label class="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg hover:bg-gray-50 hover:border-blue-400 cursor-pointer transition">
+            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-1"></i>
+            <p class="text-sm text-gray-600">Upload gambar produk</p>
+            <input type="file" name="image" id="image" accept="image/*" required class="hidden">
+          </label>
+          <p class="text-sm text-gray-500 mt-1">Format: JPG, PNG (maks. 2MB)</p>
+          <img id="preview" class="hidden mt-2 w-32 h-32 object-cover rounded shadow" />
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-4">
+          <a href="../dashboard.php" class="px-6 py-3 border rounded-md text-gray-700 hover:bg-gray-100 transition">
+            <i class="fas fa-times mr-2"></i> Batal
+          </a>
+          <button type="submit" class="px-6 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition">
+            <i class="fas fa-save mr-2"></i> Tambah Produk
+          </button>
+        </div>
+      </form>
     </div>
+  </main>
+
+  <script>
+    // Preview gambar otomatis
+    document.getElementById("image").addEventListener("change", function(e) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const preview = document.getElementById("preview");
+        preview.src = reader.result;
+        preview.classList.remove("hidden");
+      };
+      reader.readAsDataURL(e.target.files[0]);
+    });
+
+    <?php if ($feedback): ?>
+      Swal.fire({
+        icon: '<?= $feedback['type'] ?>',
+        title: '<?= $feedback['msg'] ?>',
+        showConfirmButton: <?= $feedback['type'] === 'success' ? 'false' : 'true' ?>,
+        timer: <?= $feedback['type'] === 'success' ? 1500 : 3000 ?>
+      }).then(() => {
+        <?php if ($feedback['type'] === 'success'): ?>
+          window.location.href = "../dashboard.php";
+        <?php endif; ?>
+      });
+    <?php endif; ?>
+  </script>
 </body>
 </html>
